@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>BabylonJS Interaction XR</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+      background-color: #1e1e1e;
+    }
+    #renderCanvas {
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+    #meshLabel {
+      position: absolute;
+      background: #111827;
+      color: white;
+      border: 1px solid #6366f1;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 13px;
+      pointer-events: none;
+      display: none;
+      z-index: 9999;
+    }
+    #enterXRButton {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 20px;
+      background: #4f46e5;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      z-index: 10000;
+    }
+  </style>
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+  <script src="https://cdn.babylonjs.com/materialsLibrary/babylon.gridMaterial.min.js"></script>
+  <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+</head>
+<body>
+  <canvas id="renderCanvas"></canvas>
+  <div id="meshLabel"></div>
+  <button id="enterXRButton">🎮 Entrer en mode VR</button>
+
+  <script>
+    const canvas = document.getElementById("renderCanvas");
+    const engine = new BABYLON.Engine(canvas, true);
+    const scene = new BABYLON.Scene(engine);
+    scene.clearColor = new BABYLON.Color4(0.18, 0.18, 0.18, 1);
+
+    const camera = new BABYLON.ArcRotateCamera("camera", Math.PI / 2, Math.PI / 2.5, 80, BABYLON.Vector3.Zero(), scene);
+    camera.attachControl(canvas, true);
+
+    new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+
+    const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 1000, height: 1000 });
+    ground.position.y = -5;
+
+    const gridMat = new BABYLON.GridMaterial("gridMat", scene);
+    gridMat.gridRatio = 1;
+    gridMat.mainColor = new BABYLON.Color3(1, 1, 1);
+    gridMat.lineColor = new BABYLON.Color3(0.6, 0.6, 0.6);
+    gridMat.backFaceCulling = false;
+    gridMat.majorUnitFrequency = 10;
+    gridMat.minorUnitVisibility = 0.4;
+    gridMat.opacity = 0.4;
+    ground.material = gridMat;
+
+    BABYLON.SceneLoader.Append("", "https://cdn.glitch.global/19663ff2-72dd-4c3e-8ff1-0e0e59c48c08/glb3.glb?v=1746288409729", scene);
+
+    const label = document.getElementById("meshLabel");
+    let timeout;
+
+    scene.onPointerMove = () => {
+      const pick = scene.pick(scene.pointerX, scene.pointerY);
+      canvas.style.cursor = (pick.hit && pick.pickedMesh?.name) ? "pointer" : "default";
+    };
+
+    scene.onPointerObservable.add((pointerInfo) => {
+      if (pointerInfo.type === BABYLON.PointerEventTypes.POINTERPICK) {
+        const pick = pointerInfo.pickInfo;
+        if (pick.hit && pick.pickedMesh?.name) {
+          const pos = pick.pickedPoint;
+          const pos2D = BABYLON.Vector3.Project(pos, BABYLON.Matrix.Identity(), scene.getTransformMatrix(), camera.viewport.toGlobal(canvas.width, canvas.height));
+
+          label.innerText = `🆔 ${pick.pickedMesh.name}`;
+          label.style.left = `${pos2D.x + 10}px`;
+          label.style.top = `${pos2D.y + 10}px`;
+          label.style.display = "block";
+
+          clearTimeout(timeout);
+          timeout = setTimeout(() => {
+            label.style.display = "none";
+          }, 3000);
+        }
+      }
+    });
+
+    let xrHelper;
+    const xrHelperPromise = scene.createDefaultXRExperienceAsync({ disableDefaultUI: false });
+    xrHelperPromise.then((helper) => {
+      xrHelper = helper;
+      console.log("✅ WebXR ready");
+
+      document.getElementById("enterXRButton").onclick = () => {
+        xrHelper.baseExperience.enterXRAsync("immersive-vr", "local-floor").then(() => {
+          console.log("🟢 Entered XR mode");
+        }).catch(err => console.error("❌ XR failed", err));
+      };
+    });
+
+    engine.runRenderLoop(() => scene.render());
+    window.addEventListener("resize", () => engine.resize());
+  </script>
+</body>
+</html>
